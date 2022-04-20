@@ -1,0 +1,49 @@
+{
+  "name": "tiny-dap-db",
+  "version": "0.0.1",
+  "description": "",
+  "files": [
+    "dist/core.js",
+    "dist/crypto.js",
+    "dist/utils/*.js"
+  ],
+  "module": "dist/core.js",
+  "engines": {
+    "node": ">=17.0.0"
+  },
+  "scripts": {
+    "build": "rimraf dist && node ./scripts/build.js",
+    "build:watch": "rimraf dist && node ./scripts/build-watch.js",
+    "check": "tsc -w",
+    "del": "rimraf dist",
+    "dev": "run-p check build:watch",
+    "test": "uvu tests --ignore fixtures",
+    "test:watch": "uvu tests --ignore fixtures && watchlist src tests -- pnpm test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "*",
+    "@typescript-eslint/eslint-plugin": "^5.20.0",
+    "@typescript-eslint/parser": "^5.20.0",
+    "esbuild": "^0.14.36",
+    "eslint": "^8.13.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.26.0",
+    "esm": "^3.2.25",
+    "glob": "^8.0.1",
+    "rimraf": "^3.0.2",
+    "sinon": "^13.0.2",
+    "typescript": "^4.6.3",
+    "uvu": "^0.5.3",
+    "uvu-expect": "^0.5.0",
+    "watchlist": "^0.3.1"
+  },
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "idb-keyval": "^6.1.0",
+    "npm-run-all": "^4.1.5"
+  },
+  "type": "module"
+}

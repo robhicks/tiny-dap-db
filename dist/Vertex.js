@@ -1,22 +1,7 @@
-// src/utils/isString.ts
-var isString = (str) => typeof str === "string";
-
 // src/utils/isArray.ts
 function isArray(candidate) {
   return Array.isArray(candidate);
 }
-
-// src/utils/isObject.ts
-function isObject(candidate, strict = true) {
-  if (!candidate)
-    return false;
-  if (strict)
-    return typeof candidate === "object" && !isArray(candidate);
-  return typeof candidate === "object";
-}
-
-// src/utils/isNumber.ts
-var isNumber = (can) => typeof can === "number" && Number.isFinite(can);
 
 // src/utils/uuid.ts
 function uuid() {
@@ -30,74 +15,128 @@ function uuid() {
 }
 
 // src/Vertex.ts
-var utc = () => Math.floor(new Date().getTime() / 1e3);
+var utc = () => Date.now();
 var Vertex = class {
-  _value;
-  listeners;
-  owner;
-  path;
-  pending;
-  readers;
-  store;
-  storageObject;
-  uuid;
-  value;
-  writers;
-  constructor({ owner, path, store, readers, writers }) {
-    this.listeners = /* @__PURE__ */ new Set();
-    this.owner = owner;
-    this.path = path;
-    this.readers = readers;
-    this.storageObject = { path, owner, readers, writers, timestamp: utc(), uuid: this.uuid, value: void 0 };
-    this.store = store;
+  constructor(path, store, socket) {
+    this.listeners = new Set();
     this.uuid = uuid();
-    this.writers = writers;
-    this.load();
+    this.path = path;
+    this.pending;
+    this.socket = socket;
+    this.store = store;
+    this.storageObject = {
+      path: this.path,
+      timestamp: utc(),
+      uuid: uuid()
+    };
   }
-  async del() {
-    await this.store.del(this.path);
-    this.emit(null);
-  }
-  emit(...args) {
-    this.listeners.forEach((listener) => listener(...args));
-  }
-  async once(listener) {
-    if (this.pending)
-      await this.pending;
-    listener(this.value?.value);
-  }
-  on(listener) {
+  addListener(listener) {
     this.listeners.add(listener);
   }
-  off(listener) {
+  delete() {
+    this.value = void 0;
+    this.emit(void 0);
+  }
+  emit(val) {
+    this.listeners.forEach((listener) => listener(val));
+  }
+  on(listener) {
+    this.addListener(listener);
+  }
+  once(listener) {
+    setTimeout(async () => {
+      this.addListener(listener);
+      const val = await this.value;
+      this.emit(val);
+      this.removeListener(listener);
+    }, 0);
+  }
+  pop() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value];
+        const popped = array.pop();
+        this.value = array;
+        this.emit(popped);
+      }
+    }, 0);
+  }
+  push(val) {
+    setTimeout(async () => {
+      const value = await this.value;
+      let nVal;
+      if (!value)
+        nVal = [val];
+      else if (!isArray(value))
+        nVal = [nVal];
+      else
+        nVal = [...value, val];
+      this.value = nVal;
+      this.emit(nVal);
+    }, 0);
+  }
+  put(val, update = true) {
+    setTimeout(async () => {
+      const value = await this.value;
+      let nVal = val;
+      if (!value || !update)
+        nVal = val;
+      else if (update)
+        nVal = {...value, ...val};
+      this.value = nVal;
+      if (this.pending)
+        await this.pending;
+      this.emit(nVal);
+    }, 0);
+  }
+  removeListener(listener) {
     this.listeners.delete(listener);
   }
-  async put(val) {
-    if (this.pending)
-      await this.pending;
-    const stored = this.value;
-    const value = stored?.value;
-    let nVal;
-    if (!value)
-      nVal = val;
-    else if (isString(value) || isNumber(value))
-      nVal = val;
-    else if (isObject(value) && isObject(val))
-      nVal = { ...value, ...val };
-    const newStorageObject = { ...this.storageObject, ...{ timestamp: utc(), value: nVal } };
-    this.value = newStorageObject;
-    this.store.put(this.path, newStorageObject);
-    this.emit(newStorageObject.value);
+  reverse() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value].reverse();
+        this.value = array;
+        this.emit(array);
+      }
+    }, 0);
   }
-  async load() {
-    this.pending = this.store.get(this.path);
-    const stored = await this.pending;
-    if (stored)
-      this.value = stored;
+  set(val) {
+    this.put(val, false);
   }
-  async set(val) {
+  shift() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value];
+        array.shift();
+        this.value = array;
+        this.emit(array);
+      }
+    }, 0);
+  }
+  get value() {
+    return (async () => {
+      if (this.pending)
+        await this.pending;
+      this.pending = this.store.get(this.path);
+      const storageObject = await this.pending;
+      const value = storageObject?.value;
+      return value;
+    })();
+  }
+  set value(val) {
+    return (async () => {
+      this.pending = this.store.set(this.path, {
+        ...this.storageObject,
+        ...{timestamp: utc(), value: val}
+      });
+    })();
   }
 };
+var Vertex_default = Vertex;
 export {
-  Vertex as default
+  Vertex_default as default
 };

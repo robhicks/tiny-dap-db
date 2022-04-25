@@ -1,1 +1,2 @@
-export const isNumber = (can: any): Boolean => typeof can === 'number' && Number.isFinite(can);
+export const isNumber = (can: any): Boolean =>
+  typeof can === "number" && Number.isFinite(can);

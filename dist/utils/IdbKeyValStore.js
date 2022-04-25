@@ -61,10 +61,9 @@ function clear(customStore = defaultGetStore()) {
 }
 
 // src/utils/IdbKeyValStore.ts
-var defaultDbName = "webDb";
-var defaultStoreName = "webDbStore";
+var defaultDbName = "xprDb";
+var defaultStoreName = "xprStore";
 var IdbKeyValStore = class {
-  store;
   constructor(dbName, storeName) {
     this.store = createStore(dbName || defaultDbName, storeName || defaultStoreName);
   }

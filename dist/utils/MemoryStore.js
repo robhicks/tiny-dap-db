@@ -1,8 +1,7 @@
 // src/utils/MemoryStore.ts
 var MemoryStore = class {
-  db;
   constructor() {
-    this.db = /* @__PURE__ */ new Map();
+    this.db = new Map();
   }
   async clear() {
     this.db.clear();

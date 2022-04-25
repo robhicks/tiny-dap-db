@@ -1,1 +1,1 @@
-export const isFunction = (can: any): Boolean => typeof can === 'function';
+export const isFunction = (can: any): Boolean => typeof can === "function";

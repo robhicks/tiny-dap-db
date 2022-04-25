@@ -1,83 +1,144 @@
-import { isString } from './utils/isString'
-import { isObject } from './utils/isObject';
-import { isNumber } from './utils/isNumber';
-import { uuid } from './utils/uuid';
+import { isArray } from "./utils/isArray";
+import { isString } from "./utils/isString";
+import { isObject } from "./utils/isObject";
+import { isNumber } from "./utils/isNumber";
+import { uuid } from "./utils/uuid";
+import copy from "./utils/copy";
 
-const utc = (): number => Math.floor(new Date().getTime() / 1000);
-
-
+const utc = (): number => Date.now();
 
 export default class Vertex {
-  _value: any
-  listeners: Set<any>
-  owner: String | undefined
-  path: String
-  pending: Promise<any> | undefined
-  readers: Array<String> | undefined
-  store: any
-  storageObject: Object
-  uuid: String
-  value: any
-  writers: Array<String> | undefined
+  listeners: Set<any>;
+  path: String;
+  pending: Promise | undefined;
+  socket: any;
+  store: any;
+  uuid: String;
 
-  constructor({ owner, path, store, readers, writers }) {
-    this.listeners = new Set()
-    this.owner = owner
-    this.path = path;
-    this.readers = readers
-    this.storageObject = { path, owner, readers, writers, timestamp: utc(), uuid: this.uuid, value: undefined };
-    this.store = store;
+  constructor(path: string, store: any, socket?: any) {
+    this.listeners = new Set();
     this.uuid = uuid();
-    this.writers = writers;
-    this.load()
+    this.path = path;
+    this.pending;
+    this.socket = socket;
+    this.store = store;
+    this.storageObject = {
+      path: this.path,
+      timestamp: utc(),
+      uuid: uuid(),
+    };
   }
 
-  async del() {
-    await this.store.del(this.path)
-    this.emit(null)
+  addListener(listener: Function) {
+    this.listeners.add(listener);
   }
 
-  emit(...args: Array<any>) {
-    this.listeners.forEach((listener) => listener(...args))
+  delete() {
+    this.value = undefined;
+    this.emit(undefined);
   }
 
-  async once(listener: Function) {
-    if (this.pending) await this.pending
-    listener(this.value?.value)
+  emit(val: any) {
+    this.listeners.forEach((listener) => listener(val));
   }
 
-  on(listener: Function) {
-    this.listeners.add(listener)
+  on(listener) {
+    this.addListener(listener);
   }
 
-  off(listener: Function) {
-    this.listeners.delete(listener)
+  once(listener: Function) {
+    setTimeout(async () => {
+      this.addListener(listener);
+      const val = await this.value;
+      this.emit(val);
+      this.removeListener(listener);
+    }, 0);
   }
 
-  async put(val: any): Promise<any> {
-    if (this.pending) await this.pending
-    const stored = this.value
-    const value = stored?.value
-    let nVal
-    if (!value) nVal = val;
-    else if (isString(value) || isNumber(value)) nVal = val;
-    else if (isObject(value) && isObject(val)) nVal = { ...value, ...val };
-    const newStorageObject = { ...this.storageObject, ...{ timestamp: utc(), value: nVal } }
-    this.value = newStorageObject
-    this.store.put(this.path, newStorageObject)
-    this.emit(newStorageObject.value)
+  pop() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value];
+        const popped = array.pop();
+        this.value = array;
+        this.emit(popped);
+      }
+    }, 0);
   }
 
-  async load() {
-    this.pending = this.store.get(this.path)
-    const stored = await this.pending
-    if (stored) this.value = stored
+  push(val: any) {
+    setTimeout(async () => {
+      const value = await this.value;
+      let nVal;
+      if (!value) nVal = [val];
+      else if (!isArray(value)) nVal = [nVal];
+      else nVal = [...value, val];
+      this.value = nVal;
+      this.emit(nVal);
+    }, 0);
   }
 
-  async set(val): Promise<any> {
-    // this.pending = this.store.set(this.path, val)
-    // await this.pending
-    // this.emit(val)
-    // this.pending = undefined
+  put(val: object, update?: boolean = true) {
+    setTimeout(async () => {
+      const value = await this.value;
+      let nVal = val;
+      if (!value || !update) nVal = val;
+      else if (update) nVal = { ...value, ...val };
+      this.value = nVal;
+
+      if (this.pending) await this.pending;
+      this.emit(nVal);
+    }, 0);
+  }
+
+  removeListener(listener: Function) {
+    this.listeners.delete(listener);
+  }
+
+  reverse() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value].reverse();
+        this.value = array;
+        this.emit(array);
+      }
+    }, 0);
+  }
+
+  set(val: Object) {
+    this.put(val, false);
+  }
+
+  shift() {
+    setTimeout(async () => {
+      const value = await this.value;
+      if (isArray(value)) {
+        const array = [...value];
+        array.shift();
+        this.value = array;
+        this.emit(array);
+      }
+    }, 0);
+  }
+
+  get value() {
+    return (async () => {
+      if (this.pending) await this.pending;
+      this.pending = this.store.get(this.path);
+      const storageObject = await this.pending;
+      const value = storageObject?.value;
+      return value;
+    })();
+  }
+
+  set value(val) {
+    return (async () => {
+      this.pending = this.store.set(this.path, {
+        ...this.storageObject,
+        ...{ timestamp: utc(), value: val },
+      });
+    })();
   }
 }

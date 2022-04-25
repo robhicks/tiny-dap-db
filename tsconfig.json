@@ -3,13 +3,11 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "target": "esnext",
-    "lib": [
-      "esnext"
-    ],
+    "lib": ["esnext"],
     "module": "esnext",
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "outDir": "dist",
+    "outDir": "dist"
   }
 }

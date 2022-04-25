@@ -28,13 +28,13 @@ function isArray(candidate) {
 // src/Vertex.ts
 var utc = () => Date.now();
 var Vertex = class {
-  constructor(path, store, socket) {
+  constructor(path, store2, socket) {
     this.listeners = new Set();
     this.uuid = uuid();
     this.path = path;
     this.pending;
     this.socket = socket;
-    this.store = store;
+    this.store = store2;
     this.storageObject = {
       path: this.path,
       timestamp: utc(),
@@ -154,14 +154,14 @@ var dotPathRegEx = /\./;
 var emailRegEx = /\w+@\S*?\.\w+/i;
 var Core = class {
   constructor({
-    store,
+    store: store2,
     socket,
     clientId,
     appId
   }) {
     this.currentPath = "";
     this.nodes = new Map();
-    this.store = store;
+    this.store = store2;
     this.uuid = uuid();
     this.socket = socket;
     if (this.socket) {
@@ -221,12 +221,105 @@ var Core = class {
   }
 };
 var core = ({
-  store,
+  store: store2,
   socket,
   clientId,
   appId
-}) => makeChainable_default(new Core({store, socket, clientId, appId}));
+}) => makeChainable_default(new Core({store: store2, socket, clientId, appId}));
 var core_default = core;
-export {
-  core_default as default
+
+// src/utils/MemoryStore.ts
+var MemoryStore = class {
+  constructor() {
+    this.db = new Map();
+  }
+  async clear() {
+    this.db.clear();
+  }
+  async del(path) {
+    this.db.delete(path);
+  }
+  async get(path) {
+    return this.db.get(path);
+  }
+  async put(path, value) {
+    return this.db.set(path, value);
+  }
+  async set(path, value) {
+    return this.db.set(path, value);
+  }
 };
+
+// src/tests/core.spec.ts
+var store = new MemoryStore();
+describe("core", () => {
+  describe("get()", () => {
+    it("should get the root", () => {
+      const db = core_default({store});
+      const root = db.get();
+      expect(root.currentPath).to.be.equal("root");
+    });
+    it("should support chaining", () => {
+      const db = core_default({store});
+      const t = db.get().get("users").get("rob");
+      expect(t.currentPath).to.be.equal("root.users.rob");
+    });
+    it("should get a dot-separated path", () => {
+      const db = core_default({store});
+      const root = db.get("root.users.rob");
+      expect(root.currentPath).to.be.equal("root.users.rob");
+    });
+  });
+  describe("put()", () => {
+    it("should store an initial value", () => {
+      const db = core_default({store});
+      db.get().get("experiments").put({name: "rob"}).once((val) => expect(val.name).to.be.equal("rob"));
+    });
+    it("should update an initial value", () => {
+      const db = core_default({store});
+      const root = db.get();
+      const experiments = root.get("experiments");
+      db.get().get("experiments").put({name: "rob"}).put({address: "foo"}).once((val) => {
+      });
+    });
+    it("should NOT update an initial value", () => {
+      const db = core_default({store});
+      const root = db.get();
+      const experiments = root.get("experiments");
+      db.get().get("experiments").put({name: "rob"}).put({address: "foo"}, false).once((val) => expect(val.name).to.be.equal("rob"));
+    });
+  });
+  describe("set()", () => {
+    it("should set an initial value", () => {
+      const db = core_default({store});
+      const root = db.get();
+      const experiments = root.get("experiments");
+      db.get().get("experiments").set({name: "rob"}).once((val) => expect(val.name).to.be.equal("rob"));
+    });
+    it("should set the value over an existing value", () => {
+      const db = core_default({store});
+      const root = db.get();
+      const experiments = root.get("experiments");
+      db.get().get("experiments").set({name: "glenda"}).once((val) => expect(val.name).to.be.equal("glenda"));
+    });
+  });
+  describe("push()", () => {
+    it("should create an array if one doesn't exist and add an element", () => {
+      const db = core_default({store});
+      const obj = {name: "rob"};
+      db.get().get("array").push(obj).once((val) => {
+        expect(val).to.be.an("array");
+        expect(val[0]).to.be.an("object");
+        expect(val[0]).to.be.equal(obj);
+      });
+    });
+    it("should push a value into an array", () => {
+      const db = core_default({store});
+      const obj = {name: "rob"};
+      db.get().get("array").push(obj).push(obj).once((val) => {
+      });
+    });
+  });
+  describe("web socket", () => {
+  });
+});

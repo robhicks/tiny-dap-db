@@ -1,14 +1,26 @@
-require("esbuild").build({
-  entryPoints: ["./src/index.ts"],
-  outdir: "dist",
-  bundle: true,
-  loader: {".ts": "ts"},
-  watch: {
-    onRebuild(error, result) {
-      if (error) console.error('watch build failed:', error)
-      else console.log('watch build succeeded:', result)
-    },
+import esbuildServe from "esbuild-serve";
+import glob from "glob";
+
+const entryPoints = glob.sync("./src/**/*.ts");
+
+esbuildServe(
+  {
+    entryPoints,
+    format: "esm",
+    outdir: "dist",
+    target: ["esnext"],
+    platform: "node",
+    bundle: true,
+    watch: {
+      onRebuild(error, result) {
+        if (error) console.error("watch build failed:", error);
+        else console.log("watch build succeeded: ⚡ Done", result);
+      },
+    }, 
   },
-})
-.then(() => console.log("⚡ Done"))
-.catch(() => process.exit(1));
+  {
+    // serve options (optional)
+    port: 7000,
+    root: ".",
+  }
+);

@@ -1387,6 +1387,15 @@ function uuid() {
   return uid;
 }
 
+// src/utils/copy.ts
+function copy(obj = {}) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+// src/vertices.ts
+var vertices = new Map();
+var vertices_default = vertices;
+
 // src/Vertex.ts
 var utc = () => Date.now();
 var Vertex = class {
@@ -1402,111 +1411,106 @@ var Vertex = class {
       timestamp: utc(),
       uuid: uuid()
     };
+    this.load();
   }
   addListener(listener) {
     this.listeners.add(listener);
   }
   delete() {
     this.value = void 0;
+    this.store.del(this.path);
+    vertices_default.delete(this.path);
     this.emit(void 0);
   }
   emit(val) {
     this.listeners.forEach((listener) => listener(val));
   }
+  async load() {
+    const storedObject = await this.store.get(this.path);
+    if (storedObject?.value) {
+      this.storageObject.value = storedObject.value;
+      this.storageObject.timestamp = utc();
+      this.emit(storedObject.value);
+    }
+  }
   on(listener) {
     this.addListener(listener);
   }
   once(listener) {
-    setTimeout(async () => {
-      this.addListener(listener);
-      const val = await this.value;
-      this.emit(val);
-      this.removeListener(listener);
-    }, 0);
+    this.addListener(listener);
+    const value = this.value;
+    if (isArray(value)) {
+      const values = value.map((el) => {
+        const v2 = vertices_default.get(el);
+        const val = v2.value;
+        return val;
+      });
+      this.emit(values);
+    } else {
+      this.emit(this.value);
+    }
+    this.removeListener(listener);
   }
   pop() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value];
-        const popped = array.pop();
-        this.value = array;
-        this.emit(popped);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      const popped = value.pop();
+      const v2 = vertices_default.get(popped);
+      v2.delete();
+      this.value = value;
+    }
   }
   push(val) {
-    setTimeout(async () => {
-      const value = await this.value;
-      let nVal;
-      if (!value)
-        nVal = [val];
-      else if (!isArray(value))
-        nVal = [nVal];
-      else
-        nVal = [...value, val];
-      this.value = nVal;
-      this.emit(nVal);
-    }, 0);
+    const value = copy(this.value);
+    if (!isArray(value))
+      throw new TypeError("cannot push into non-array");
+    const uid = uuid();
+    const path2 = `${this.path}.${uid}`;
+    const el = new Vertex(path2, this.store, this.socket);
+    vertices_default.set(path2, el);
+    el.storageObject.value = val;
+    el.storageObject.timestamp = utc();
+    value.push(path2);
+    this.value = value;
   }
   put(val, update = true) {
-    setTimeout(async () => {
-      const value = await this.value;
-      let nVal = val;
-      if (!value || !update)
-        nVal = val;
-      else if (update)
-        nVal = {...value, ...val};
-      this.value = nVal;
-      if (this.pending)
-        await this.pending;
-      this.emit(nVal);
-    }, 0);
+    let nVal = val;
+    if (!this.value || !update)
+      nVal = val;
+    else if (update)
+      nVal = {...this.value, ...val};
+    this.value = nVal;
   }
   removeListener(listener) {
     this.listeners.delete(listener);
   }
   reverse() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value].reverse();
-        this.value = array;
-        this.emit(array);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      value.reverse();
+      this.value = value;
+    }
   }
   set(val) {
     this.put(val, false);
   }
   shift() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value];
-        array.shift();
-        this.value = array;
-        this.emit(array);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      const shifted = value.shift();
+      const v2 = vertices_default.get(shifted);
+      v2.delete();
+      this.value = value;
+    }
   }
   get value() {
-    return (async () => {
-      if (this.pending)
-        await this.pending;
-      this.pending = this.store.get(this.path);
-      const storageObject = await this.pending;
-      const value = storageObject?.value;
-      return value;
-    })();
+    return this.storageObject?.value;
   }
   set value(val) {
-    return (async () => {
-      this.pending = this.store.set(this.path, {
-        ...this.storageObject,
-        ...{timestamp: utc(), value: val}
-      });
-    })();
+    this.storageObject.value = val;
+    this.storageObject.timestamp = utc();
+    this.store.set(this.path, this.storageObject);
+    this.emit(this.path, val);
   }
 };
 var Vertex_default = Vertex;
@@ -1685,7 +1689,7 @@ var import_mock_socket = __toModule(require_mock_socket());
 var v;
 var path = "root.vertex";
 var sandbox;
-describe("Vertex", () => {
+describe.only("Vertex", () => {
   beforeEach(() => {
     sandbox = sinon.createSandbox();
   });
@@ -1743,14 +1747,14 @@ describe("Vertex", () => {
     });
   });
   describe("delete()", () => {
-    it("should delete the vertex storageObject", async () => {
+    it("should delete the vertex storageObject value", () => {
       const store = new MemoryStore();
       v = new Vertex_default(path, store);
       v.value = {name: "foobar"};
+      v.delete();
       v.once((val) => {
         expect(val).to.be.undefined;
       });
-      await v.delete();
     });
   });
   describe("put()", () => {
@@ -1795,20 +1799,11 @@ describe("Vertex", () => {
     });
   });
   describe("push()", () => {
-    it("should create an array and push a value into it", async () => {
+    it("should push a value into an array", async () => {
       const store = new MemoryStore();
       v = new Vertex_default(path, store);
       const obj = {name: "rob"};
-      v.push(obj);
-      v.once((val) => {
-        expect(val[0].name).to.be.equal("rob");
-      });
-    });
-    it("should push a value into an existing array", async () => {
-      const store = new MemoryStore();
-      v = new Vertex_default(path, store);
-      const obj = {name: "rob"};
-      v.put([]);
+      v.set([]);
       v.push(obj);
       v.once((val) => {
         expect(val[0].name).to.be.equal("rob");
@@ -1829,6 +1824,7 @@ describe("Vertex", () => {
       v.push(obj3);
       v.push(obj4);
       v.once((val) => {
+        console.log(`val`, val);
         expect(val[0].name).to.be.equal("rob");
         expect(val[1].name).to.be.equal("crystal");
         expect(val[2].name).to.be.equal("brandon");
@@ -1970,7 +1966,7 @@ describe("Vertex", () => {
       });
     });
   });
-  describe.only("network interactions", () => {
+  describe("network interactions", () => {
     let fakeUrl = "ws://localhost:8080";
     before(() => {
       const mockServer = new import_mock_socket.Server(fakeUrl);

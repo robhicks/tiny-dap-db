@@ -7,7 +7,7 @@ let v;
 let path = "root.vertex";
 let sandbox;
 
-describe.only("Vertex", () => {
+describe("Vertex", () => {
   beforeEach(() => {
     sandbox = sinon.createSandbox();
   });
@@ -299,23 +299,6 @@ describe.only("Vertex", () => {
       v.value = { name: "foobar" };
       v.once((val) => {
         expect(val?.name).to.be.equal("foobar");
-      });
-    });
-  });
-
-  describe("network interactions", () => {
-    let fakeUrl = "ws://localhost:8080";
-    before(() => {
-      const mockServer = new Server(fakeUrl);
-    });
-    describe("get()", () => {
-      it("should get data from server", () => {
-        const store = new MemoryStore();
-        const socket = new WebSocketClient(fakeUrl);
-        v = new Vertex(path, store, socket);
-        v.once((val) => {
-          console.log(`val`, val);
-        });
       });
     });
   });

@@ -42,6 +42,7 @@ var Vertex = class {
     this.uuid = uuid();
     this.path = path;
     this.pending;
+    this.registered = false;
     this.socket = socket;
     this.store = store2;
     this.storageObject = {
@@ -50,6 +51,7 @@ var Vertex = class {
       uuid: uuid()
     };
     this.load();
+    this.register();
   }
   addListener(listener) {
     this.listeners.add(listener);
@@ -89,6 +91,11 @@ var Vertex = class {
     }
     this.removeListener(listener);
   }
+  onMessage(message) {
+    if (message.request === "REGISTER" && message.response === "OK") {
+      this.registered = true;
+    }
+  }
   pop() {
     const value = copy(this.value);
     if (isArray(value)) {
@@ -118,6 +125,11 @@ var Vertex = class {
     else if (update)
       nVal = {...this.value, ...val};
     this.value = nVal;
+  }
+  register() {
+    if (this.socket) {
+      this.socket.send({...this.storageObject, ...{request: "REGISTER"}});
+    }
   }
   removeListener(listener) {
     this.listeners.delete(listener);
@@ -257,37 +269,37 @@ var MemoryStore = class {
 // src/tests/core.spec.ts
 var store = new MemoryStore();
 describe("core", () => {
+  let db;
+  before(() => {
+    db = core_default({store});
+  });
   describe("get()", () => {
     it("should get the root", () => {
-      const db = core_default({store});
       const root = db.get();
       expect(root.currentPath).to.be.equal("root");
     });
     it("should support chaining", () => {
-      const db = core_default({store});
       const t = db.get().get("users").get("rob");
       expect(t.currentPath).to.be.equal("root.users.rob");
     });
     it("should get a dot-separated path", () => {
-      const db = core_default({store});
-      const root = db.get("root.users.rob");
+      const db2 = core_default({store});
+      const root = db2.get("root.users.rob");
       expect(root.currentPath).to.be.equal("root.users.rob");
     });
   });
   describe("put()", () => {
     it("should store an initial value", () => {
-      const db = core_default({store});
       db.get().get("experiments").put({name: "rob"}).once((val) => expect(val.name).to.be.equal("rob"));
     });
     it("should update an initial value", () => {
-      const db = core_default({store});
       const root = db.get();
       const experiments = root.get("experiments");
       db.get().get("experiments").put({name: "rob"}).put({address: "foo"}).once((val) => {
+        console.log(`val`, val);
       });
     });
     it("should NOT update an initial value", () => {
-      const db = core_default({store});
       const root = db.get();
       const experiments = root.get("experiments");
       db.get().get("experiments").put({name: "rob"}).put({address: "foo"}, false).once((val) => expect(val.name).to.be.equal("rob"));
@@ -295,13 +307,11 @@ describe("core", () => {
   });
   describe("set()", () => {
     it("should set an initial value", () => {
-      const db = core_default({store});
       const root = db.get();
       const experiments = root.get("experiments");
       db.get().get("experiments").set({name: "rob"}).once((val) => expect(val.name).to.be.equal("rob"));
     });
     it("should set the value over an existing value", () => {
-      const db = core_default({store});
       const root = db.get();
       const experiments = root.get("experiments");
       db.get().get("experiments").set({name: "glenda"}).once((val) => expect(val.name).to.be.equal("glenda"));
@@ -309,18 +319,16 @@ describe("core", () => {
   });
   describe("push()", () => {
     it("should create an array if one doesn't exist and add an element", () => {
-      const db = core_default({store});
       const obj = {name: "rob"};
-      db.get().get("array").push(obj).once((val) => {
+      db.get().get("array").set([]).push(obj).once((val) => {
         expect(val).to.be.an("array");
         expect(val[0]).to.be.an("object");
         expect(val[0]).to.be.equal(obj);
       });
     });
     it("should push a value into an array", () => {
-      const db = core_default({store});
       const obj = {name: "rob"};
-      db.get().get("array").push(obj).push(obj).once((val) => {
+      db.get().get("array").set([]).push(obj).push(obj).once((val) => {
       });
     });
   });

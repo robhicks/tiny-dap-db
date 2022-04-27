@@ -13,8 +13,8 @@ class Core {
   socket: any;
   store: object;
   uuid: string;
-  clientId?: string;
-  appId?: string;
+  clientId: string;
+  appId: string;
 
   constructor({
     store,

@@ -8,8 +8,10 @@ function isJson(str) {
   }
 }
 
-// src/utils/deserialize.ts
+// src/utils/serializer.ts
 var deserialize = (str) => isJson(str) || {};
+var serialize = (obj) => JSON.stringify(obj);
 export {
-  deserialize
+  deserialize,
+  serialize
 };

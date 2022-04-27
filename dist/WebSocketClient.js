@@ -8,10 +8,8 @@ function isJson(str) {
   }
 }
 
-// src/utils/deserialize.ts
+// src/utils/serializer.ts
 var deserialize = (str) => isJson(str) || {};
-
-// src/utils/serialize.ts
 var serialize = (obj) => JSON.stringify(obj);
 
 // src/utils/EventEmitter.ts
@@ -64,6 +62,10 @@ var EventEmitter = class {
   }
 };
 
+// src/vertices.ts
+var vertices = new Map();
+var vertices_default = vertices;
+
 // src/WebSocketClient.ts
 var autoReconnectInterval = 1e3;
 var WebSocketClient = class extends EventEmitter {
@@ -74,6 +76,8 @@ var WebSocketClient = class extends EventEmitter {
     this.nodeId = "";
     this.socketUrl = socketUrl;
     this.listeners = new Map();
+    this.init();
+    this.connect();
   }
   async authenticate() {
     const url = `${this.socketUrl.replace("ws", "http")}/login`;
@@ -92,15 +96,16 @@ var WebSocketClient = class extends EventEmitter {
     }
   }
   check() {
-    console.log("checking connection", this.socket.readyState);
     if (!this.socket || this.socket.readyState === 3)
       this.connect();
+    if (this.socket.readyState === 1)
+      console.log("connected and ready");
   }
   init({
     clientId,
     appId,
     nodeId
-  }) {
+  } = {}) {
     this.clientId = clientId;
     this.appId = appId;
     this.nodeId = nodeId;
@@ -108,9 +113,7 @@ var WebSocketClient = class extends EventEmitter {
   async connect() {
     console.count(`connect`);
     try {
-      await this.authenticate();
       this.socket = new WebSocket(this.socketUrl);
-      console.log(`this.socket`, this.socket);
       this.socket.onclose = this.onclose.bind(this);
       this.socket.onerror = this.onerror.bind(this);
       this.socket.onopen = this.onopen.bind(this);
@@ -137,10 +140,19 @@ var WebSocketClient = class extends EventEmitter {
   }
   onmessage(ev) {
     const data = ev.data ? deserialize(ev.data) : {};
-    console.log(`data`, data);
+    const vertex = vertices_default.get(data.path);
+    if (vertex)
+      vertex.onMessage(data);
   }
   onopen() {
     setInterval(this.check.bind(this), autoReconnectInterval);
+  }
+  send(message) {
+    if (this.socket.readyState === 1) {
+      this.socket.send(serialize(message));
+    } else {
+      setTimeout(() => this.send(message), 1e3);
+    }
   }
 };
 var WebSocketClient_default = WebSocketClient;

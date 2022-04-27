@@ -12,15 +12,17 @@ export default class Vertex {
   listeners: Set<any>;
   path: String;
   pending: Promise | undefined;
+  registered: boolean;
   socket: any;
   store: any;
   uuid: String;
 
-  constructor(path: string, store: any, socket?: any) {
+  constructor(path: string, store: any, socket: any) {
     this.listeners = new Set();
     this.uuid = uuid();
     this.path = path;
     this.pending;
+    this.registered = false;
     this.socket = socket;
     this.store = store;
     this.storageObject = {
@@ -29,6 +31,7 @@ export default class Vertex {
       uuid: uuid(),
     };
     this.load();
+    this.register();
   }
 
   addListener(listener: Function) {
@@ -75,6 +78,12 @@ export default class Vertex {
     this.removeListener(listener);
   }
 
+  onMessage(message) {
+    if (message.request === "REGISTER" && message.response === "OK") {
+      this.registered = true;
+    }
+  }
+
   pop() {
     const value = copy(this.value);
     if (isArray(value)) {
@@ -103,6 +112,12 @@ export default class Vertex {
     if (!this.value || !update) nVal = val;
     else if (update) nVal = { ...this.value, ...val };
     this.value = nVal;
+  }
+
+  register() {
+    if (this.socket) {
+      this.socket.send({ ...this.storageObject, ...{ request: "REGISTER" } });
+    }
   }
 
   removeListener(listener: Function) {

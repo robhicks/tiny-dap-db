@@ -42,6 +42,7 @@ var Vertex = class {
     this.uuid = uuid();
     this.path = path;
     this.pending;
+    this.registered = false;
     this.socket = socket;
     this.store = store;
     this.storageObject = {
@@ -50,6 +51,7 @@ var Vertex = class {
       uuid: uuid()
     };
     this.load();
+    this.register();
   }
   addListener(listener) {
     this.listeners.add(listener);
@@ -89,6 +91,11 @@ var Vertex = class {
     }
     this.removeListener(listener);
   }
+  onMessage(message) {
+    if (message.request === "REGISTER" && message.response === "OK") {
+      this.registered = true;
+    }
+  }
   pop() {
     const value = copy(this.value);
     if (isArray(value)) {
@@ -118,6 +125,11 @@ var Vertex = class {
     else if (update)
       nVal = {...this.value, ...val};
     this.value = nVal;
+  }
+  register() {
+    if (this.socket) {
+      this.socket.send({...this.storageObject, ...{request: "REGISTER"}});
+    }
   }
   removeListener(listener) {
     this.listeners.delete(listener);

@@ -1,6 +1,7 @@
 import makeChainable from "./utils/makeChainable";
 import { uuid } from "./utils/uuid";
 import Vertex from "./Vertex";
+import vertices from "./vertices";
 
 const dotPathRegEx = /\./;
 const emailRegEx = /\w+@\S*?\.\w+/i;
@@ -8,12 +9,12 @@ const emailRegEx = /\w+@\S*?\.\w+/i;
 class Core {
   currentVertex: any;
   currentPath: string;
-  nodes: Map<Object, Object>;
+  vertices: Map<Object, Object>;
   socket: any;
   store: object;
   uuid: string;
-  clientId?: string;
-  appId?: string;
+  clientId: string;
+  appId: string;
 
   constructor({
     store,
@@ -27,7 +28,7 @@ class Core {
     appId?: string;
   }) {
     this.currentPath = "";
-    this.nodes = new Map();
+    this.vertices = vertices;
     this.store = store;
     this.uuid = uuid();
     this.socket = socket;
@@ -58,13 +59,13 @@ class Core {
         this.currentPath = `${this.currentPath || "root"}.${path}`;
       }
     }
-    if (!this.nodes.has(this.currentPath)) {
+    if (!this.vertices.has(this.currentPath)) {
       this.currentVertex = new Vertex(
         this.currentPath,
         this.store,
         this.socket
       );
-      this.nodes.set(this.currentPath, this.currentVertex);
+      this.vertices.set(this.currentPath, this.currentVertex);
     }
   }
 

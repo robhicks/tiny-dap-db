@@ -71,14 +71,14 @@ describe("Vertex", () => {
   });
 
   describe("delete()", () => {
-    it("should delete the vertex storageObject", async () => {
+    it("should delete the vertex storageObject value", () => {
       const store = new MemoryStore();
       v = new Vertex(path, store);
       v.value = { name: "foobar" };
+      v.delete();
       v.once((val) => {
         expect(val).to.be.undefined;
       });
-      await v.delete();
     });
   });
 
@@ -88,7 +88,6 @@ describe("Vertex", () => {
       v = new Vertex(path, store);
       v.put({ name: "baz" });
       v.once((val) => {
-        // console.log(`test::val`, val);
         expect(val?.name).to.be.equal("baz");
       });
     });
@@ -128,20 +127,11 @@ describe("Vertex", () => {
   });
 
   describe("push()", () => {
-    it("should create an array and push a value into it", async () => {
+    it("should push a value into an array", async () => {
       const store = new MemoryStore();
       v = new Vertex(path, store);
       const obj = { name: "rob" };
-      v.push(obj);
-      v.once((val) => {
-        expect(val[0].name).to.be.equal("rob");
-      });
-    });
-    it("should push a value into an existing array", async () => {
-      const store = new MemoryStore();
-      v = new Vertex(path, store);
-      const obj = { name: "rob" };
-      v.put([]);
+      v.set([]);
       v.push(obj);
       v.once((val) => {
         expect(val[0].name).to.be.equal("rob");
@@ -162,6 +152,7 @@ describe("Vertex", () => {
       v.push(obj3);
       v.push(obj4);
       v.once((val) => {
+        console.log(`val`, val);
         expect(val[0].name).to.be.equal("rob");
         expect(val[1].name).to.be.equal("crystal");
         expect(val[2].name).to.be.equal("brandon");
@@ -308,23 +299,6 @@ describe("Vertex", () => {
       v.value = { name: "foobar" };
       v.once((val) => {
         expect(val?.name).to.be.equal("foobar");
-      });
-    });
-  });
-
-  describe.only("network interactions", () => {
-    let fakeUrl = "ws://localhost:8080";
-    before(() => {
-      const mockServer = new Server(fakeUrl);
-    });
-    describe("get()", () => {
-      it("should get data from server", () => {
-        const store = new MemoryStore();
-        const socket = new WebSocketClient(fakeUrl);
-        v = new Vertex(path, store, socket);
-        v.once((val) => {
-          console.log(`val`, val);
-        });
       });
     });
   });

@@ -1,7 +1,7 @@
 import decode from "jwt-decode";
-import { deserialize } from "./utils/deserialize";
-import { serialize } from "./utils/serialize";
+import { deserialize, serialize } from "./utils/serializer";
 import { EventEmitter } from "./utils/EventEmitter";
+import vertices from "./vertices";
 
 const autoReconnectInterval = 1000;
 const sendRetryTimeout = 1000;
@@ -20,6 +20,8 @@ class WebSocketClient extends EventEmitter {
     this.nodeId = "";
     this.socketUrl = socketUrl;
     this.listeners = new Map();
+    this.init();
+    this.connect();
   }
 
   async authenticate() {
@@ -40,8 +42,9 @@ class WebSocketClient extends EventEmitter {
   }
 
   check() {
-    console.log("checking connection", this.socket.readyState);
+    // console.log("checking connection", this.socket.readyState);
     if (!this.socket || this.socket.readyState === 3) this.connect();
+    if (this.socket.readyState === 1) console.log("connected and ready");
   }
 
   init({
@@ -49,10 +52,10 @@ class WebSocketClient extends EventEmitter {
     appId,
     nodeId,
   }: {
-    clientId: string;
-    appId: string;
-    nodeId: string;
-  }) {
+    clientId?: string;
+    appId?: string;
+    nodeId?: string;
+  } = {}) {
     this.clientId = clientId;
     this.appId = appId;
     this.nodeId = nodeId;
@@ -62,9 +65,8 @@ class WebSocketClient extends EventEmitter {
     console.count(`connect`);
 
     try {
-      await this.authenticate();
+      // await this.authenticate();
       this.socket = new WebSocket(this.socketUrl);
-      console.log(`this.socket`, this.socket);
       this.socket.onclose = this.onclose.bind(this);
       this.socket.onerror = this.onerror.bind(this);
       this.socket.onopen = this.onopen.bind(this);
@@ -94,13 +96,20 @@ class WebSocketClient extends EventEmitter {
 
   onmessage(ev: any) {
     const data = ev.data ? deserialize(ev.data) : {};
-    console.log(`data`, data);
-    // const decoded = decode(data);
-    // console.log(`decoded`, decoded)
+    const vertex = vertices.get(data.path);
+    if (vertex) vertex.onMessage(data);
   }
 
   onopen() {
     setInterval(this.check.bind(this), autoReconnectInterval);
+  }
+
+  send(message) {
+    if (this.socket.readyState === 1) {
+      this.socket.send(serialize(message));
+    } else {
+      setTimeout(() => this.send(message), 1000);
+    }
   }
 }
 

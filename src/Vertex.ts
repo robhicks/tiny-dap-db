@@ -4,6 +4,7 @@ import { isObject } from "./utils/isObject";
 import { isNumber } from "./utils/isNumber";
 import { uuid } from "./utils/uuid";
 import copy from "./utils/copy";
+import vertices from "./vertices";
 
 const utc = (): number => Date.now();
 
@@ -11,15 +12,17 @@ export default class Vertex {
   listeners: Set<any>;
   path: String;
   pending: Promise | undefined;
+  registered: boolean;
   socket: any;
   store: any;
   uuid: String;
 
-  constructor(path: string, store: any, socket?: any) {
+  constructor(path: string, store: any, socket: any) {
     this.listeners = new Set();
     this.uuid = uuid();
     this.path = path;
     this.pending;
+    this.registered = false;
     this.socket = socket;
     this.store = store;
     this.storageObject = {
@@ -27,6 +30,8 @@ export default class Vertex {
       timestamp: utc(),
       uuid: uuid(),
     };
+    this.load();
+    this.register();
   }
 
   addListener(listener: Function) {
@@ -35,6 +40,8 @@ export default class Vertex {
 
   delete() {
     this.value = undefined;
+    this.store.del(this.path);
+    vertices.delete(this.path);
     this.emit(undefined);
   }
 
@@ -42,54 +49,75 @@ export default class Vertex {
     this.listeners.forEach((listener) => listener(val));
   }
 
+  async load() {
+    const storedObject = await this.store.get(this.path);
+    if (storedObject?.value) {
+      this.storageObject.value = storedObject.value;
+      this.storageObject.timestamp = utc();
+      this.emit(storedObject.value);
+    }
+  }
+
   on(listener) {
     this.addListener(listener);
   }
 
   once(listener: Function) {
-    setTimeout(async () => {
-      this.addListener(listener);
-      const val = await this.value;
-      this.emit(val);
-      this.removeListener(listener);
-    }, 0);
+    this.addListener(listener);
+    const value = this.value;
+    if (isArray(value)) {
+      const values = value.map((el) => {
+        const v = vertices.get(el);
+        const val = v.value;
+        return val;
+      });
+      this.emit(values);
+    } else {
+      this.emit(this.value);
+    }
+    this.removeListener(listener);
+  }
+
+  onMessage(message) {
+    if (message.request === "REGISTER" && message.response === "OK") {
+      this.registered = true;
+    }
   }
 
   pop() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value];
-        const popped = array.pop();
-        this.value = array;
-        this.emit(popped);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      const popped = value.pop();
+      const v = vertices.get(popped);
+      v.delete();
+      this.value = value;
+    }
   }
 
   push(val: any) {
-    setTimeout(async () => {
-      const value = await this.value;
-      let nVal;
-      if (!value) nVal = [val];
-      else if (!isArray(value)) nVal = [nVal];
-      else nVal = [...value, val];
-      this.value = nVal;
-      this.emit(nVal);
-    }, 0);
+    const value = copy(this.value);
+    if (!isArray(value)) throw new TypeError("cannot push into non-array");
+    const uid = uuid();
+    const path = `${this.path}.${uid}`;
+    const el = new Vertex(path, this.store, this.socket);
+    vertices.set(path, el);
+    el.storageObject.value = val;
+    el.storageObject.timestamp = utc();
+    value.push(path);
+    this.value = value;
   }
 
   put(val: object, update?: boolean = true) {
-    setTimeout(async () => {
-      const value = await this.value;
-      let nVal = val;
-      if (!value || !update) nVal = val;
-      else if (update) nVal = { ...value, ...val };
-      this.value = nVal;
+    let nVal = val;
+    if (!this.value || !update) nVal = val;
+    else if (update) nVal = { ...this.value, ...val };
+    this.value = nVal;
+  }
 
-      if (this.pending) await this.pending;
-      this.emit(nVal);
-    }, 0);
+  register() {
+    if (this.socket) {
+      this.socket.send({ ...this.storageObject, ...{ request: "REGISTER" } });
+    }
   }
 
   removeListener(listener: Function) {
@@ -97,14 +125,11 @@ export default class Vertex {
   }
 
   reverse() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value].reverse();
-        this.value = array;
-        this.emit(array);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      value.reverse();
+      this.value = value;
+    }
   }
 
   set(val: Object) {
@@ -112,33 +137,23 @@ export default class Vertex {
   }
 
   shift() {
-    setTimeout(async () => {
-      const value = await this.value;
-      if (isArray(value)) {
-        const array = [...value];
-        array.shift();
-        this.value = array;
-        this.emit(array);
-      }
-    }, 0);
+    const value = copy(this.value);
+    if (isArray(value)) {
+      const shifted = value.shift();
+      const v = vertices.get(shifted);
+      v.delete();
+      this.value = value;
+    }
   }
 
   get value() {
-    return (async () => {
-      if (this.pending) await this.pending;
-      this.pending = this.store.get(this.path);
-      const storageObject = await this.pending;
-      const value = storageObject?.value;
-      return value;
-    })();
+    return this.storageObject?.value;
   }
 
   set value(val) {
-    return (async () => {
-      this.pending = this.store.set(this.path, {
-        ...this.storageObject,
-        ...{ timestamp: utc(), value: val },
-      });
-    })();
+    this.storageObject.value = val;
+    this.storageObject.timestamp = utc();
+    this.store.set(this.path, this.storageObject);
+    this.emit(this.path, val);
   }
 }
